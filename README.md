@@ -13,7 +13,7 @@ CHIP-8 emulator/interpreter in Python
 - Port from Tk to Qt
 
 ## Development notes
-Initial code made in 4 days on a Windows laptop, 
+Initial code made in 4 days on a Windows laptop.
 
 ### References
 - mattmikolay's CHIP‐8 pages: [Technical Reference](https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Technical-Reference) and [Instruction Set](https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Instruction-Set)
