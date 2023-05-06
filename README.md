@@ -8,6 +8,7 @@ CHIP-8 emulator/interpreter in Python
 ## Issues/Feature wishlist
 - Audio support
 - GUI to remap controls
+- Proper way to restart emulator without relaunching it (also stops user from loading another ROM)
 - GUI to change several settings (e.g. screen size/scale, clock speed)
 - CLI support
 - Port from Tk to Qt
