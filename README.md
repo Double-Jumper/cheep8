@@ -27,4 +27,4 @@ The method currently used to refresh the display is very slow and scales badly f
 After using the quirks test from the test suite (link in references above) I was under the impression that I could add SCHIP and XO-CHIP support by just providing the options to toggle those specific quirks. Only later that I found [this link] in the test suite readme, containing an extensive list of difference including higher resolution modes, which I'm not interested in supporting at this moment. Either way, that's why I even bothered adding quirk settings and exposing them to the GUI.
 
 ### Future plans
-Probably not going to work on this anymore, I'll probably attempt to port it to Rust at some point, mostly for practice as I just started learning it.
+Probably not going to work on this anymore, might attempt to port it to Rust at some point, mostly for practice (just started learning it).
