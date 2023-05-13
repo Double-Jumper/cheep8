@@ -3,6 +3,9 @@ import queue
 import logging
 import time
 
+import simpleaudio as sa
+import numpy as np
+
 # from display import Display
 from kb_input import KB_Input
 from timer import Timer
@@ -339,9 +342,12 @@ class Core():
                     case 0x15: #TEST
                         self.delay_timer.timer = self.r_v[x]
                     case 0x18: #TEST
-                        #TODO: find cross platform way to beep
-                        #and also be able to interrupt the beep
-                        0 == 0
+                        frequency = 440  # frequency of the beep in Hz (e.g., A4 note)
+                        duration = self.r_v[x] * 0.001  # duration in seconds (assuming the sound timer is in milliseconds)
+                        sample_rate = 44100  # sample rate for the audio
+                        samples = (np.sin(2 * np.pi * np.arange(sample_rate * duration) * frequency / sample_rate)).astype(np.float32)
+                        play_obj = sa.play_buffer(samples, 1, 2, sample_rate)
+                        play_obj.stop()  # To interrupt the beep, you can call stop() on the play object. You may need additional logic to handle the interruption based on your requirements.
                     case 0x1E:
                         self.r_i += self.r_v[x]
                         logging.debug(f"I ({self.r_i}) += V{x:x} ({self.r_v[x]})")
