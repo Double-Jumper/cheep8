@@ -7,6 +7,8 @@ import time
 from kb_input import KB_Input
 from timer import Timer
 
+from beep_player import BeepPlayer
+
 #References:
 #https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Technical-Reference
 #https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Instruction-Set
@@ -35,6 +37,10 @@ class Core():
         'jumping': False
     }
 
+    #Beep singleton object
+
+    beep_player = None
+
     #CHIP8 structures
     display_data = None
     ram = None
@@ -48,6 +54,7 @@ class Core():
         self.display_queue = display_queue
         self.kb_input = KB_Input()
         self.delay_timer = Timer(self.display_hz)
+        self.beep_player = BeepPlayer()
     
     def setup(self, file_name, quirks:dict, clk_hz=720, epoch_size=10, debug=False):
         self.clk_hz = clk_hz
@@ -339,9 +346,8 @@ class Core():
                     case 0x15: #TEST
                         self.delay_timer.timer = self.r_v[x]
                     case 0x18: #TEST
-                        #TODO: find cross platform way to beep
-                        #and also be able to interrupt the beep
-                        0 == 0
+                         duration = self.r_v[x] / 60.0  # duration in seconds
+                         self.beep_player.play_beep(frequency=440, duration=duration)
                     case 0x1E:
                         self.r_i += self.r_v[x]
                         logging.debug(f"I ({self.r_i}) += V{x:x} ({self.r_v[x]})")
