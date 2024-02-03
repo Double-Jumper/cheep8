@@ -1,9 +1,9 @@
-from tkinter import (Tk, Canvas, PhotoImage, Menu, filedialog, Toplevel,
-    Checkbutton, IntVar, Button)
+import sdl2.ext
 import threading
 import queue
 import time
 import os
+import ctypes
 from core import Core
 
 class Emulator:
@@ -11,6 +11,9 @@ class Emulator:
     core = None
     core_thread = None
     display_queue = None
+    window = None
+    surface = None
+    u32_pixels = None
     running = False
 
     #UI
@@ -35,76 +38,27 @@ class Emulator:
     }
 
     #TODO: support different colors
-    def __init__(self, w=64, h=32, scale:int=1, refresh_rate=60, file=None):
+    def __init__(self, w=64, h=32, scale:int=1, refresh_rate=60, file="/home/jumper/Games/Breakout (Brix hack) [David Winter, 1997].ch8"):
         #Initialize display and UI
         self.scale = scale
         self.refresh_rate = refresh_rate
         w *= self.scale
         h *= self.scale
-        self.tk = Tk()
-        self.tk.title("Cheep8")
-        self.tk.protocol("WM_DELETE_WINDOW", self.quit)
-        win_w = max(round(w*1.2), 250) #leave enough room in the title bar to show the title and be draggable
-        win_h = round(h*1.2)
-        self.tk.geometry(f"{win_w}x{win_h}")
-        self.canvas = Canvas(self.tk, width=w, height=h, highlightthickness=0)
-        self.canvas.place(relx=.5, rely=.5, anchor="c")
-        self.img = PhotoImage(width=w, height=h)
-        self.canvas.create_image((w/2, h/2), image=self.img, state="normal")
+        win_w = max(round(w), 250) #leave enough room in the title bar to show the title and be draggable
+        win_h = round(h)
+        sdl2.ext.init()
+        self.window = sdl2.SDL_CreateWindow(
+            b"Cheep8", sdl2.SDL_WINDOWPOS_CENTERED, sdl2.SDL_WINDOWPOS_CENTERED,
+            win_w, win_h, sdl2.SDL_WINDOW_SHOWN
+        )
+        self.surface = sdl2.SDL_GetWindowSurface(self.window)
+        self.u32_pixels = ctypes.cast(self.surface[0].pixels, ctypes.POINTER(ctypes.c_uint32));
+        
         self.display_queue = queue.Queue(1)
-        self.create_ui()
-        self.tk.update()
         
         if file is not None:
             self.start_core(file)
-        self.tk.mainloop()
 
-    #UI
-
-    def create_ui(self):
-        menu_bar = Menu(self.tk)
-        self.file_menu = Menu(menu_bar, tearoff=False)
-        self.file_menu.add_command(label="Open", command=self.select_rom)
-        self.file_menu.add_separator()
-        self.file_menu.add_command(label="Quit", command=self.quit)
-        menu_bar.add_cascade(label="File", menu=self.file_menu)
-
-        settings_menu = Menu(menu_bar, tearoff=False)
-        settings_menu.add_command(label="Settings", command=self.settings)
-        menu_bar.add_cascade(label="Settings", menu=settings_menu)
-
-        self.tk.config(menu=menu_bar)
-    
-    def settings(self):
-        self.settings_window = Toplevel(self.tk)
-        self.settings_window.geometry("300x250")
-        self.settings_window.title("Settings")
-        self.quirk_checkbuttons = []
-        for i, (key, value) in enumerate(self.quirks.items()):
-            v = IntVar(self.settings_window, value=value)
-            checkbutton = Checkbutton(
-                self.settings_window, text=key, variable=v, onvalue=True, offvalue=False
-            )
-            checkbutton.grid(row=i, column=0, sticky='w')
-            self.quirk_checkbuttons.append(checkbutton)
-        b = Button(self.settings_window, text="Ok", command=self.settings_ok)
-        b.grid(row=len(self.quirk_checkbuttons))
-        self.settings_window.mainloop()
-    
-    def settings_ok(self):
-        for checkbutton in self.quirk_checkbuttons:
-            key = checkbutton['text']
-            self.quirks[key] = checkbutton.getvar()
-    
-    def select_rom(self):
-        file = filedialog.askopenfilename(title="Select a ROM", filetypes=[("CHIP8 ROMs", "*.ch8")])
-        #TODO: check how to properly kill all these threads so it can support resetting/loading a second ROM
-        #and self.running can actually mean *something*
-        self.file_menu.entryconfig("Open", state="disabled")
-        # if self.running:
-        #     self.core_thread
-        self.start_core(file)
-    
     #System
 
     def start_core(self, file):
@@ -127,18 +81,28 @@ class Emulator:
                 display_data = self.display_queue.get()
                 self.display_queue.task_done()
                 
-                str_data = [
-                    ["#FFF" if pixel == 1 else "#000" for pixel in line]
+                # Clear Surface
+                sdl2.SDL_FillRect(self.surface, None, 0)
+                win_width = ctypes.c_int()
+                win_height = ctypes.c_int()
+                sdl2.SDL_GetWindowSize(self.window, win_width, win_height)
+                win_width = win_width.value
+
+                pixel_data = [
+                    [0xffffffff if pixel == 1 else 0x0 for pixel in line]
                     for line in display_data
                 ]
                 if self.scale > 1:
-                    str_data = [
+                    pixel_data = [
                         [p for p in line for _ in range(self.scale)]
-                        for line in str_data for _ in range(self.scale)
+                        for line in pixel_data for _ in range(self.scale)
                     ]
-                self.img.put(str_data)
+                
+                for j, line in enumerate(pixel_data):
+                    for i, pixel in enumerate(line):
+                        self.u32_pixels[j*win_width+i] = pixel
             
-            self.tk.update()
+            sdl2.SDL_UpdateWindowSurface(self.window, self.surface)
             
             if self.quirks['display_wait']:
                 elapsed = time.time() - last_refresh
@@ -150,3 +114,7 @@ class Emulator:
                         f"(target is {1000*1./self.refresh_rate:.2f}ms for {self.refresh_rate}Hz)")
                 last_refresh = time.time()
 
+        ev = sdl2.SDL_Event()
+        while(sdl2.SDL_PollEvent(ev)):
+            if(ev.type == sdl2.SDL_QUIT):
+                self.quit()
