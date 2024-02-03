@@ -1,9 +1,11 @@
-import sdl2.ext
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QMenuBar, QMenu, QLabel, QAction)
+from PyQt5.QtGui import QImage, QPixmap, qRgba
+
 import threading
 import queue
 import time
 import os
-import ctypes
+import sys
 from core import Core
 
 class Emulator:
@@ -11,13 +13,13 @@ class Emulator:
     core = None
     core_thread = None
     display_queue = None
-    window = None
-    surface = None
-    u32_pixels = None
+    application = None
+    main_window = None
+    image_label = None
+    image = None
     running = False
 
     #UI
-    tk = None
     file_menu = None
     canvas = None
     img = None
@@ -46,19 +48,51 @@ class Emulator:
         h *= self.scale
         win_w = max(round(w), 250) #leave enough room in the title bar to show the title and be draggable
         win_h = round(h)
-        sdl2.ext.init()
-        self.window = sdl2.SDL_CreateWindow(
-            b"Cheep8", sdl2.SDL_WINDOWPOS_CENTERED, sdl2.SDL_WINDOWPOS_CENTERED,
-            win_w, win_h, sdl2.SDL_WINDOW_SHOWN
-        )
-        self.surface = sdl2.SDL_GetWindowSurface(self.window)
-        self.u32_pixels = ctypes.cast(self.surface[0].pixels, ctypes.POINTER(ctypes.c_uint32));
+        self.application = QApplication(sys.argv)
+        self.main_window = QMainWindow()
+        self.main_window.setWindowTitle("Cheep8")
+        self.main_window.setFixedWidth(win_w)
+        self.main_window.setFixedHeight(win_h)
+        self.image_label = QLabel()
+        self.image = QImage(w,h,QImage.Format.Format_Mono)
+        self.image.setColorCount(2)
+        self.image.setColor(0, qRgba(0,0,0,255))
+        self.image.setColor(1, qRgba(255,255,255,255))
+
+        self.image_label.setPixmap(QPixmap.fromImage(self.image))
+        self.main_window.setCentralWidget(self.image_label)
+        self.create_ui()
+        self.main_window.show()
         
         self.display_queue = queue.Queue(1)
         
         if file is not None:
             self.start_core(file)
 
+    def create_ui(self):
+        menu_bar = QMenuBar()
+
+        self.file_menu = QMenu("File", menu_bar)
+        # self.file_menu.addAction(text="Open", slot=self.select_rom)
+        # self.file_menu.addSeparator()
+        quit_item = QAction("Quit")
+        quit_item.triggered.connect(self.quit)
+        self.file_menu.addAction(quit_item)
+
+        # settings_menu = QMenu("Settings", menu_bar)
+        # settings_menu.addAction(text="Settings", slot=self.settings)
+
+        self.main_window.setMenuBar(menu_bar)
+    
+    # def select_rom(self):
+    #     file = filedialog.askopenfilename(title="Select a ROM", filetypes=[("CHIP8 ROMs", "*.ch8")])
+    #     #TODO: check how to properly kill all these threads so it can support resetting/loading a second ROM
+    #     #and self.running can actually mean *something*
+    #     self.file_menu.entryconfig("Open", state="disabled")
+    #     # if self.running:
+    #     #     self.core_thread
+    #     self.start_core(file)
+        
     #System
 
     def start_core(self, file):
@@ -81,28 +115,16 @@ class Emulator:
                 display_data = self.display_queue.get()
                 self.display_queue.task_done()
                 
-                # Clear Surface
-                sdl2.SDL_FillRect(self.surface, None, 0)
-                win_width = ctypes.c_int()
-                win_height = ctypes.c_int()
-                sdl2.SDL_GetWindowSize(self.window, win_width, win_height)
-                win_width = win_width.value
-
-                pixel_data = [
-                    [0xffffffff if pixel == 1 else 0x0 for pixel in line]
-                    for line in display_data
-                ]
                 if self.scale > 1:
-                    pixel_data = [
+                    display_data = [
                         [p for p in line for _ in range(self.scale)]
-                        for line in pixel_data for _ in range(self.scale)
+                        for line in display_data for _ in range(self.scale)
                     ]
                 
-                for j, line in enumerate(pixel_data):
+                for j, line in enumerate(display_data):
                     for i, pixel in enumerate(line):
-                        self.u32_pixels[j*win_width+i] = pixel
-            
-            sdl2.SDL_UpdateWindowSurface(self.window, self.surface)
+                        self.image.setPixel(i, j, pixel)
+                self.image_label.setPixmap(QPixmap.fromImage(self.image))
             
             if self.quirks['display_wait']:
                 elapsed = time.time() - last_refresh
@@ -114,7 +136,4 @@ class Emulator:
                         f"(target is {1000*1./self.refresh_rate:.2f}ms for {self.refresh_rate}Hz)")
                 last_refresh = time.time()
 
-        ev = sdl2.SDL_Event()
-        while(sdl2.SDL_PollEvent(ev)):
-            if(ev.type == sdl2.SDL_QUIT):
-                self.quit()
+            self.application.processEvents()
