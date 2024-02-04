@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QMenuBar, QMenu, QLabel, QAction)
 from PyQt5.QtGui import QImage, QPixmap, qRgba
+from PyQt5.QtCore import QSize
 
 import threading
 import queue
@@ -54,12 +55,12 @@ class Emulator:
         self.main_window.setFixedWidth(win_w)
         self.main_window.setFixedHeight(win_h)
         self.image_label = QLabel()
-        self.image = QImage(w,h,QImage.Format.Format_Mono)
+        self.image = QImage(64,32,QImage.Format.Format_Mono)
         self.image.setColorCount(2)
         self.image.setColor(0, qRgba(0,0,0,255))
         self.image.setColor(1, qRgba(255,255,255,255))
 
-        self.image_label.setPixmap(QPixmap.fromImage(self.image))
+        self.image_label.setPixmap(QPixmap.fromImage(self.image).scaled(w,h))
         self.main_window.setCentralWidget(self.image_label)
         self.create_ui()
         self.main_window.show()
@@ -115,16 +116,11 @@ class Emulator:
                 display_data = self.display_queue.get()
                 self.display_queue.task_done()
                 
-                if self.scale > 1:
-                    display_data = [
-                        [p for p in line for _ in range(self.scale)]
-                        for line in display_data for _ in range(self.scale)
-                    ]
-                
                 for j, line in enumerate(display_data):
                     for i, pixel in enumerate(line):
                         self.image.setPixel(i, j, pixel)
-                self.image_label.setPixmap(QPixmap.fromImage(self.image))
+                pixmap = QPixmap.fromImage(self.image).scaled(64*self.scale, 32*self.scale)
+                self.image_label.setPixmap(pixmap)
             
             if self.quirks['display_wait']:
                 elapsed = time.time() - last_refresh
